@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lafay-carnet-v4'; // Version incrémentée pour forcer la mise à jour du cache
+const CACHE_NAME = 'lafay-carnet-v5'; // Version incrémentée pour forcer la mise à jour du cache
 const urlsToCache = [
     '/Carnet-d-entrainement/', 
     '/Carnet-d-entrainement/index.html',
