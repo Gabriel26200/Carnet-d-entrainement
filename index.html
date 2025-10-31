@@ -3,15 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Démo Firebase/Firestore</title>
-    <!-- Chargement de Tailwind CSS pour un style rapide et responsif -->
+    <title>Notes Firestore en Temps Réel</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Configuration de la police Inter */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6; /* Gris très clair */
+            background-color: #f3f4f6;
         }
     </style>
 </head>
@@ -19,15 +17,13 @@
 
     <div id="app-container" class="w-full max-w-xl bg-white p-6 sm:p-8 rounded-xl shadow-2xl transition-all duration-300">
         <h1 class="text-3xl font-bold text-gray-800 mb-2">Notes Firestore en Temps Réel</h1>
-        <p class="text-sm text-gray-500 mb-6">Authentifié et connecté à la base de données.</p>
+        <p class="text-sm text-gray-500 mb-6">Connecté à Firestore (authentification anonyme).</p>
 
-        <!-- Affichage de l'état de l'utilisateur -->
         <div id="user-info" class="bg-indigo-50 border border-indigo-200 p-3 rounded-lg text-sm mb-6">
             <p class="font-semibold text-indigo-700">État : <span id="auth-status" class="font-normal text-gray-600">Initialisation...</span></p>
             <p class="font-semibold text-indigo-700">UserID : <span id="current-user-id" class="font-mono text-xs text-gray-600"></span></p>
         </div>
 
-        <!-- Formulaire pour ajouter une note -->
         <form id="add-note-form" class="flex flex-col sm:flex-row gap-4 mb-8 p-4 bg-gray-50 rounded-lg shadow-inner">
             <input type="text" id="note-input" placeholder="Ajouter une nouvelle note..." 
                    class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" required>
@@ -37,16 +33,13 @@
             </button>
         </form>
 
-        <!-- Liste des notes -->
         <div id="notes-list-container">
             <h2 class="text-xl font-semibold text-gray-700 mb-3 border-b pb-2">Mes Notes</h2>
             <div id="notes-list" class="space-y-3">
-                <!-- Les notes seront injectées ici par JavaScript -->
                 <p id="loading-message" class="text-gray-400 italic">Chargement des notes...</p>
             </div>
         </div>
 
-        <!-- Message d'erreur (masqué par défaut) -->
         <div id="error-message" class="hidden mt-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
             <strong class="font-bold">Erreur Firestore :</strong>
             <span id="error-details" class="block sm:inline"></span>
@@ -54,43 +47,27 @@
     </div>
 
     <script type="module">
-        // Importations des modules Firebase nécessaires
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { 
-            getAuth, 
-            signInAnonymously, 
-            signInWithCustomToken, 
-            onAuthStateChanged 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, 
-            collection, 
-            onSnapshot, 
-            addDoc,
-            serverTimestamp,
-            setLogLevel,
-            query,
-            orderBy
+            getFirestore, collection, onSnapshot, addDoc, serverTimestamp, query, orderBy 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        //-------------------------------------------------------------
-        // 1. Initialisation de Firebase
-        //-------------------------------------------------------------
+        // 🔧 Remplace par ta configuration Firebase :
+        const firebaseConfig = {
+            apiKey: "AIzaSyA***************",
+            authDomain: "ton-projet.firebaseapp.com",
+            projectId: "ton-projet",
+            storageBucket: "ton-projet.appspot.com",
+            messagingSenderId: "1234567890",
+            appId: "1:1234567890:web:abcdef123456"
+        };
 
-        // Les configurations globales sont fournies par l'environnement Canvas
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        
-        // Active le mode débogage pour les logs de Firestore
-        setLogLevel('debug'); 
+        // --- Initialisation Firebase ---
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
-        let app;
-        let db;
-        let auth;
-        let userId = null;
-        let notesCollectionRef;
-        
         const noteInput = document.getElementById('note-input');
         const addButton = document.getElementById('add-note-button');
         const notesList = document.getElementById('notes-list');
@@ -100,160 +77,88 @@
         const errorDetails = document.getElementById('error-details');
         const form = document.getElementById('add-note-form');
 
-        /**
-         * Affiche un message d'erreur à l'utilisateur.
-         * @param {string} message Le message d'erreur à afficher.
-         */
         function displayError(message) {
             console.error("Erreur Firebase/Firestore:", message);
             errorDetails.textContent = message;
             errorMessage.classList.remove('hidden');
-            authStatus.textContent = 'Erreur!';
+            authStatus.textContent = 'Erreur';
             authStatus.classList.add('text-red-500');
         }
 
-        /**
-         * Tente d'initialiser Firebase et de se connecter.
-         */
-        async function initialize() {
+        async function start() {
             try {
-                // Initialise l'application Firebase
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                
                 authStatus.textContent = 'Connexion...';
-
-                // Tente de s'authentifier
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                    console.log("Authentification réussie avec jeton personnalisé.");
-                } else {
-                    await signInAnonymously(auth);
-                    console.log("Authentification anonyme réussie.");
-                }
-
-                // L'écouteur onAuthStateChanged confirmera l'état de connexion et démarrera Firestore
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        currentUserIdDisplay.textContent = userId;
-                        authStatus.textContent = 'Connecté';
-                        authStatus.classList.remove('text-red-500');
-                        addButton.disabled = false;
-
-                        // Chemin de la collection privée de l'utilisateur
-                        notesCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/notes`);
-                        
-                        // Démarrer l'écoute des notes
-                        listenForNotes();
-                    } else {
-                        // Devrait rarement se produire ici si signInWithCustomToken ou signInAnonymously réussit
-                        userId = 'Déconnecté';
-                        currentUserIdDisplay.textContent = userId;
-                        authStatus.textContent = 'Déconnecté';
-                        addButton.disabled = true;
-                    }
-                });
-
+                await signInAnonymously(auth);
+                console.log("✅ Authentification anonyme réussie.");
             } catch (e) {
-                displayError(`Échec de l'initialisation ou de l'authentification : ${e.message}`);
-                addButton.disabled = true;
+                displayError(`Échec de l'authentification : ${e.message}`);
             }
         }
-        
-        //-------------------------------------------------------------
-        // 2. Opérations Firestore (Lecture en temps réel)
-        //-------------------------------------------------------------
 
-        /**
-         * Écoute en temps réel les changements dans la collection de notes.
-         */
-        function listenForNotes() {
-            // Créer une requête pour ordonner les notes par horodatage (date d'ajout)
-            // Note: Nous n'utilisons PAS orderBy() pour éviter les erreurs d'index, mais on trie en local.
-            // Cependant, on garde un champ de tri pour un usage potentiel en cas de besoin.
-            const notesQuery = notesCollectionRef; 
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                authStatus.textContent = 'Connecté';
+                currentUserIdDisplay.textContent = user.uid;
+                addButton.disabled = false;
+                listenForNotes(user.uid);
+            } else {
+                authStatus.textContent = 'Déconnecté';
+                addButton.disabled = true;
+            }
+        });
+
+        function listenForNotes(userId) {
+            const notesRef = collection(db, `users/${userId}/notes`);
+            const notesQuery = query(notesRef, orderBy("createdAt", "desc"));
             
-            // onSnapshot écoute les changements en temps réel
             onSnapshot(notesQuery, (snapshot) => {
-                notesList.innerHTML = ''; // Vider la liste actuelle
-                const notes = [];
-                
-                snapshot.forEach((doc) => {
-                    notes.push({ id: doc.id, ...doc.data() });
-                });
-
-                // Trier localement par date de création, du plus récent au plus ancien
-                notes.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
-
-                if (notes.length === 0) {
-                    notesList.innerHTML = '<p class="text-gray-400 italic">Aucune note pour l\'instant. Ajoutez-en une !</p>';
-                } else {
-                    notes.forEach(note => {
-                        const noteElement = document.createElement('div');
-                        noteElement.className = "p-4 bg-white border border-gray-200 rounded-lg shadow-sm flex justify-between items-center";
-                        
-                        const dateText = note.createdAt ? 
-                            new Date(note.createdAt.toMillis()).toLocaleTimeString('fr-FR', {
-                                hour: '2-digit', minute: '2-digit', second: '2-digit'
-                            }) : 'Date inconnue';
-
-                        noteElement.innerHTML = `
-                            <span class="text-gray-700">${note.text}</span>
-                            <span class="text-xs text-gray-400 ml-4">(${dateText})</span>
-                        `;
-                        notesList.appendChild(noteElement);
-                    });
+                notesList.innerHTML = '';
+                if (snapshot.empty) {
+                    notesList.innerHTML = '<p class="text-gray-400 italic">Aucune note pour l\'instant.</p>';
+                    return;
                 }
-                document.getElementById('loading-message')?.remove();
-
+                snapshot.forEach((doc) => {
+                    const note = doc.data();
+                    const dateText = note.createdAt ? 
+                        new Date(note.createdAt.toMillis()).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) 
+                        : '...';
+                    const div = document.createElement('div');
+                    div.className = "p-4 bg-white border border-gray-200 rounded-lg shadow-sm flex justify-between";
+                    div.innerHTML = `
+                        <span class="text-gray-700">${note.text}</span>
+                        <span class="text-xs text-gray-400 ml-4">(${dateText})</span>
+                    `;
+                    notesList.appendChild(div);
+                });
             }, (error) => {
-                // Gestion des erreurs de l'écouteur
-                displayError(`Échec de l'écoute en temps réel : ${error.message}`);
+                displayError(`Erreur Firestore : ${error.message}`);
             });
         }
-        
-        //-------------------------------------------------------------
-        // 3. Opérations Firestore (Écriture)
-        //-------------------------------------------------------------
 
-        /**
-         * Gère la soumission du formulaire pour ajouter une nouvelle note.
-         */
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const text = noteInput.value.trim();
-
-            if (!text || !notesCollectionRef) {
-                return;
-            }
-
+            if (!text || !auth.currentUser) return;
+            const userId = auth.currentUser.uid;
+            const notesRef = collection(db, `users/${userId}/notes`);
             addButton.disabled = true;
             addButton.textContent = "Ajout...";
-
             try {
-                // Ajoute un nouveau document à la collection
-                await addDoc(notesCollectionRef, {
-                    text: text,
-                    createdAt: serverTimestamp(), // Horodatage du serveur pour un tri fiable
+                await addDoc(notesRef, {
+                    text,
+                    createdAt: serverTimestamp(),
                     isCompleted: false
                 });
-
-                noteInput.value = ''; // Réinitialiser le champ
-                console.log("Note ajoutée avec succès !");
-
+                noteInput.value = '';
             } catch (e) {
-                displayError(`Échec de l'ajout de la note : ${e.message}`);
+                displayError(`Échec de l'ajout : ${e.message}`);
             } finally {
                 addButton.disabled = false;
                 addButton.textContent = "Ajouter la note";
             }
         });
 
-        // Démarre tout
-        initialize();
-
+        start();
     </script>
 </body>
 </html>
