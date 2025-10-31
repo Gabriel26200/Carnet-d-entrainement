@@ -1,0 +1,754 @@
+<!-- Chosen Palette: Gemini Light Theme (Blue Accent, Warm Neutrals) -->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carnet d'entraînement Numérique PWA</title>
+    
+    <!-- ********** PWA : LIEN VERS MANIFEST.JSON ********** -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Carnet Entraînement">
+    <meta name="theme-color" content="#2563EB"> 
+    
+    <!-- Chargement de Tailwind CSS pour le style -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chargement des icônes Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        
+        /* COULEURS GEMINI LIGHT THEME */
+        :root {
+            --color-background: #F8F9FA;
+            --color-surface: #FFFFFF;
+            --color-accent: #2563EB;
+            --color-text: #1F1F1F;
+            --color-secondary-text: #5F6368;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--color-background);
+            color: var(--color-text);
+        }
+        
+        /* Style des cartes (simule l'élévation Material Design sur fond clair) */
+        .material-card {
+            background-color: var(--color-surface);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+            border-radius: 16px;
+        }
+
+        /* Amélioration de l'état de survol pour les cartes (History) */
+        .session-card {
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s ease-in-out;
+        }
+        .session-card:hover {
+            background-color: #F0F0F0;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+            border-color: #D1D5DB;
+        }
+        
+        /* Style du minuteur */
+        #timer-display {
+            font-size: 4rem;
+            font-weight: 800;
+            color: var(--color-accent);
+            text-shadow: 0 0 10px rgba(37, 99, 235, 0.3);
+        }
+        
+        /* Style des boutons d'actions principales */
+        .primary-btn {
+            background-color: var(--color-accent);
+            color: #FFFFFF;
+            font-weight: 700;
+            border-radius: 9999px;
+            transition: background-color 0.2s;
+        }
+        .primary-btn:hover {
+            background-color: #1D4ED8;
+        }
+        
+        /* Assurer le style Material aux inputs */
+        input:focus {
+            border-color: var(--color-accent);
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3);
+        }
+        
+    </style>
+</head>
+<body class="min-h-screen p-4 sm:p-6">
+
+    <div id="app" class="max-w-xl mx-auto">
+        <header class="mb-8 p-3 border-b border-gray-300">
+            <h1 class="text-4xl font-extrabold text-center text-blue-600">Carnet d'entraînement</h1>
+        </header>
+
+        <!-- Navigation principale -->
+        <nav class="flex justify-center space-x-4 mb-8 p-1.5 material-card shadow-lg">
+            <button data-view="session" class="nav-btn bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-full font-semibold transition">Nouvelle Séance</button>
+            <button data-view="history" class="nav-btn bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-6 rounded-full font-semibold transition">Historique</button>
+        </nav>
+
+        <!-- Vues de l'application -->
+
+        <!-- 1. Vue de Saisie de Session (Par défaut) -->
+        <div id="view-session" class="app-view space-y-6">
+            <h2 class="text-2xl font-semibold text-gray-800">Enregistrer ma Séance</h2>
+
+            <!-- Minuteur intégré -->
+            <div id="integrated-timer" class="text-center p-6 material-card border border-blue-300">
+                <h3 class="text-xl font-bold mb-4 text-blue-600">Minuteur de Repos ⏱️</h3>
+                
+                <div id="timer-display" class="mb-4">25</div>
+
+                <div class="flex justify-center items-center space-x-3 mb-6">
+                    <label for="input-rest-time" class="text-gray-600 text-sm font-medium">Temps de Repos (sec):</label>
+                    <input type="number" id="input-rest-time" value="25" min="1" max="180" class="w-20 p-2 rounded-lg bg-gray-100 text-gray-900 text-center text-sm focus:ring-blue-600 border-2 border-transparent focus:border-blue-600" aria-label="Temps de repos en secondes">
+                    <button id="set-rest-time-btn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 px-4 rounded-full text-sm font-semibold transition">Régler</button>
+                </div>
+
+                <div class="flex justify-center space-x-4">
+                    <button id="start-timer-btn" class="primary-btn py-3 px-8 shadow-lg flex items-center space-x-2">
+                        <i data-lucide="play" class="w-5 h-5"></i> <span>Démarrer</span>
+                    </button>
+                    <button id="reset-timer-btn" class="bg-red-500 hover:bg-red-400 text-white py-3 px-8 rounded-full font-bold transition flex items-center space-x-2 hidden">
+                        <i data-lucide="rotate-ccw" class="w-5 h-5"></i> <span>Stop/Reset</span>
+                    </button>
+                </div>
+                <p id="timer-status" class="mt-4 text-blue-600 font-medium text-sm">Prêt pour un repos de 25 secondes.</p>
+            </div>
+            <!-- Fin Minuteur intégré -->
+
+
+            <!-- Champ de niveau -->
+            <input type="text" id="input-level" value="Niveau 2" class="w-full p-4 rounded-xl bg-gray-100 text-gray-900 placeholder-gray-400 border-2 border-transparent focus:border-blue-600 transition" placeholder="Niveau (ex: Niveau 3)">
+            
+
+            <button id="load-last-session-btn" class="w-full bg-yellow-500 hover:bg-yellow-400 text-white py-3 rounded-full text-lg font-bold shadow-md transition flex items-center justify-center space-x-2">
+                <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                <span>Charger Dernière Séance</span>
+            </button>
+            <p id="load-session-message" class="text-center text-sm mt-2 hidden text-yellow-600"></p>
+
+            <div id="exercise-list" class="space-y-4 p-4 material-card">
+                <h3 class="text-lg font-bold text-gray-700">Exercices de la Séance</h3>
+                <!-- Les exercices seront injectés ici par JS -->
+            </div>
+
+            <div class="flex space-x-3">
+                <input type="text" id="input-new-exercise" class="flex-grow p-4 rounded-xl bg-gray-100 text-gray-900 placeholder-gray-400 border-2 border-transparent focus:border-blue-600 transition" placeholder="Nom Exercice (ex: K2)">
+                <button id="add-exercise-btn" class="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full flex items-center shadow-md">
+                    <i data-lucide="plus" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <button id="save-session-btn" class="w-full primary-btn py-4 text-xl shadow-xl hover:shadow-2xl transition">
+                Sauvegarder la Séance
+            </button>
+            <p id="session-message" class="text-center text-sm mt-2 hidden"></p>
+        </div>
+
+        <!-- 2. Vue Historique -->
+        <div id="view-history" class="app-view hidden space-y-6">
+            <h2 class="text-2xl font-semibold text-gray-800">Mon Historique (Progression)</h2>
+
+            <p id="loading-history" class="text-gray-600 text-center py-8">Chargement des séances...</p>
+
+            <div id="history-list" class="space-y-4">
+                <!-- L'historique sera injecté ici par JS -->
+            </div>
+            <p id="no-sessions" class="text-gray-600 text-center py-8 hidden">Aucune séance enregistrée pour le moment.</p>
+
+            <!-- Modale de Détails de Séance -->
+            <div id="detail-modal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50 hidden">
+                <div class="material-card p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+                    <div class="flex justify-between items-start mb-4 border-b border-gray-300 pb-3">
+                        <h3 id="modal-title" class="text-2xl font-bold text-blue-600">Détails de Séance</h3>
+                        <button id="close-modal-btn" class="text-gray-500 hover:text-gray-700 transition p-2 rounded-full hover:bg-gray-100">
+                            <i data-lucide="x" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+                    <div id="modal-content" class="space-y-4 text-gray-700">
+                        <!-- Contenu des détails de séance -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        // REMARQUE: connectFirestoreEmulator a été supprimé.
+        import { getFirestore, doc, addDoc, onSnapshot, collection, query, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Variables globales fournies par l'environnement
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; 
+
+        let db, auth, userId = null;
+        let isAuthReady = false;
+        let sessionsCache = [];
+
+        // Éléments UI
+        const sessionMessageEl = document.getElementById('session-message');
+        const loadSessionMessageEl = document.getElementById('load-session-message');
+        const historyListEl = document.getElementById('history-list');
+        const noSessionsEl = document.getElementById('no-sessions');
+        const loadingHistoryEl = document.getElementById('loading-history');
+        const loadLastSessionBtn = document.getElementById('load-last-session-btn');
+        const navButtons = document.querySelectorAll('.nav-btn');
+
+        const inputLevelEl = document.getElementById('input-level');
+
+        // --- 1. Initialisation Firebase et Authentification ---
+        async function initializeFirebase() {
+            try {
+                if (Object.keys(firebaseConfig).length === 0) {
+                    console.error("Firebase config is missing. Cannot initialize Firestore.");
+                    return;
+                }
+
+                setLogLevel('Debug');
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // ************************************************************
+                // ***** DÉMARRAGE BASE DE DONNÉES EN MODE PRODUCTION **********
+                // ************************************************************
+
+                // Authentification
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        isAuthReady = true;
+                        console.log("Firebase initialized and user authenticated:", userId);
+                        // Démarrer l'écoute des sessions après l'authentification
+                        startSessionListener();
+                    } else {
+                        console.log("No user signed in.");
+                        // Tentative de connexion anonyme si nécessaire
+                        if (auth.currentUser) {
+                            userId = auth.currentUser.uid;
+                            isAuthReady = true;
+                            startSessionListener();
+                        } else {
+                            signInAnonymously(auth).then(userCred => {
+                                userId = userCred.user.uid;
+                                isAuthReady = true;
+                                startSessionListener();
+                            }).catch(err => {
+                                console.error("Erreur de connexion anonyme:", err);
+                            });
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error("Erreur lors de l'initialisation de Firebase:", error);
+            }
+        }
+        
+        // --- 2. Gestion de la Vue et Navigation ---
+
+        function navigateToView(targetView) {
+            // Mettre à jour les boutons de navigation (style Material)
+            navButtons.forEach(btn => {
+                const isCurrent = btn.dataset.view === targetView;
+                
+                // Réinitialiser les classes
+                btn.classList.remove('bg-blue-600', 'hover:bg-blue-700', 'text-white', 'bg-gray-200', 'hover:bg-gray-300', 'text-gray-700');
+
+                if (isCurrent) {
+                    // Style actif
+                    btn.classList.add('bg-blue-600', 'hover:bg-blue-700', 'text-white');
+                } else {
+                    // Style inactif
+                    btn.classList.add('bg-gray-200', 'hover:bg-gray-300', 'text-gray-700');
+                }
+            });
+
+            // Afficher la vue correspondante
+            document.querySelectorAll('.app-view').forEach(view => {
+                view.classList.add('hidden');
+            });
+            document.getElementById(`view-${targetView}`).classList.remove('hidden');
+
+            // Re-rendu des icônes pour la nouvelle vue
+            lucide.createIcons();
+        }
+
+        navButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                navigateToView(e.currentTarget.dataset.view);
+            });
+        });
+
+
+        // --- 3. Logique de Saisie de Séance ---
+
+        // Exercices par défaut
+        let currentExercises = [
+            { name: "A3", reps: [] },
+            { name: "A6", reps: [] },
+            { name: "B", reps: [] },
+            { name: "C1", reps: [] },
+            { name: "E1", reps: [] },
+            { name: "F", reps: [] },
+            { name: "G", reps: [] },
+        ];
+        const exerciseListEl = document.getElementById('exercise-list');
+        const addExerciseBtn = document.getElementById('add-exercise-btn');
+        const inputNewExercise = document.getElementById('input-new-exercise');
+
+
+        function renderExercises() {
+            exerciseListEl.querySelector('div.space-y-3')?.remove();
+            
+            const listContainer = document.createElement('div');
+            listContainer.className = 'space-y-3';
+
+            currentExercises.forEach((ex, index) => {
+                const exDiv = document.createElement('div');
+                // Adaptation au thème clair
+                exDiv.className = 'p-3 rounded-xl bg-gray-100 border border-gray-300';
+                
+                const repsToDisplay = ex.reps || (ex.sets || []); 
+
+                // Afficher les résultats de la dernière séance si disponibles
+                const lastRepsDisplay = ex.lastReps && ex.lastReps.length > 0
+                    ? `<p class="text-xs text-blue-500 mt-1 font-mono">Dernière: ${ex.lastReps.join(' / ')}</p>`
+                    : '';
+
+                exDiv.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-lg font-bold text-blue-600">${ex.name}</h3>
+                        <button data-index="${index}" class="remove-exercise-btn text-red-500 hover:text-red-400 transition p-1 rounded-full hover:bg-gray-200">
+                             <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    ${lastRepsDisplay} 
+
+                    <div class="reps-container flex flex-wrap gap-2 mb-3">
+                        <!-- Rep Chips - bg-blue-600 sur fond clair -->
+                        ${repsToDisplay.map((r, i) => `<span class="rep-chip bg-blue-600 text-white text-xs px-3 py-1 rounded-full font-semibold">${r}</span>`).join('')}
+                    </div>
+                    <div class="flex space-x-2">
+                        <!-- Input - bg-gray-200 sur fond gris clair -->
+                        <input type="number" data-index="${index}" class="input-rep w-20 p-2 rounded-lg bg-gray-200 text-gray-900 placeholder-gray-500 focus:ring-blue-600 text-center border-2 border-transparent focus:border-blue-600" placeholder="Reps" min="1">
+                        <!-- Bouton - bg-blue-500 -->
+                        <button data-index="${index}" class="add-rep-btn bg-blue-500 hover:bg-blue-400 text-white p-2 rounded-lg text-sm font-bold flex-grow transition">Ajouter Série</button>
+                    </div>
+                `;
+                listContainer.appendChild(exDiv);
+            });
+            exerciseListEl.appendChild(listContainer);
+            lucide.createIcons();
+        }
+
+        // Ajouter une répétition (série)
+        exerciseListEl.addEventListener('click', (e) => {
+            const btn = e.target.closest('.add-rep-btn');
+            if (btn) {
+                const index = parseInt(btn.dataset.index);
+                const input = exerciseListEl.querySelector(`.input-rep[data-index="${index}"]`);
+                const reps = parseInt(input.value);
+
+                if (reps && reps > 0) {
+                    if (!currentExercises[index].reps) currentExercises[index].reps = [];
+                    currentExercises[index].reps.push(reps);
+                    input.value = '';
+                    renderExercises();
+
+                    // Démarrage Minuteur après chaque Série
+                    resetTimer();
+                    startTimer();
+                }
+            }
+            const removeBtn = e.target.closest('.remove-exercise-btn');
+            if (removeBtn) {
+                const index = parseInt(removeBtn.dataset.index);
+                currentExercises.splice(index, 1);
+                renderExercises();
+            }
+        });
+
+        // Ajouter un nouvel exercice
+        addExerciseBtn.addEventListener('click', () => {
+            const newName = inputNewExercise.value.trim().toUpperCase();
+            if (newName && !currentExercises.find(ex => ex.name === newName)) {
+                currentExercises.push({ name: newName, reps: [] });
+                inputNewExercise.value = '';
+                renderExercises();
+            }
+        });
+
+        // --- Logique de Chargement de la Dernière Séance ---
+
+        loadLastSessionBtn.addEventListener('click', () => {
+            loadLastSession();
+        });
+
+        function loadLastSession() {
+            if (sessionsCache.length === 0) {
+                showLoadMessage("Aucune séance précédente trouvée.", 'red');
+                return;
+            }
+
+            const lastSession = sessionsCache[0];
+
+            // 1. Mettre à jour les champs de texte
+            inputLevelEl.value = lastSession.level || 'Niveau X';
+
+            // 2. Charger les exercices (structure uniquement)
+            currentExercises = lastSession.exercises.map(ex => ({
+                name: ex.name,
+                reps: [], // Les répétitions sont réinitialisées pour la nouvelle séance
+                lastReps: ex.sets || [], // Stocker les dernières répétitions pour la référence
+            }));
+
+            // 3. Afficher la nouvelle liste
+            renderExercises();
+            showLoadMessage(`Dernière séance (${lastSession.level}) chargée. Les anciennes répétitions sont affichées en référence.`, 'blue');
+        }
+
+        function showLoadMessage(message, color) {
+            loadSessionMessageEl.textContent = message;
+            loadSessionMessageEl.className = `text-center text-sm mt-2 text-${color}-600`;
+            loadSessionMessageEl.classList.remove('hidden');
+            setTimeout(() => loadSessionMessageEl.classList.add('hidden'), 5000);
+        }
+
+        // --- 4. Sauvegarde Firestore ---
+
+        const saveSessionBtn = document.getElementById('save-session-btn');
+
+        saveSessionBtn.addEventListener('click', async () => {
+            if (!isAuthReady) {
+                showMessage("Erreur: Authentification non prête. Veuillez réessayer.", 'red');
+                return;
+            }
+
+            const level = inputLevelEl.value.trim();
+            const sessionName = `Session du ${new Date().toLocaleDateString('fr-FR')}`; // Nom généré automatiquement
+            const comment = ""; 
+
+            // Filtrer et formater pour Firestore
+            const validExercises = currentExercises.filter(ex => ex.reps && ex.reps.length > 0);
+
+            if (!level) {
+                showMessage("Veuillez remplir le Niveau.", 'red');
+                return;
+            }
+            if (validExercises.length === 0) {
+                 showMessage("Veuillez ajouter au moins une série à un exercice.", 'red');
+                 return;
+            }
+
+            // Mappe les répétitions locales (.reps) vers l'enregistrement Firestore (.sets)
+            const formattedExercises = validExercises.map(ex => ({
+                name: ex.name,
+                sets: ex.reps // Utiliser 'sets' pour l'enregistrement Firestore
+            }));
+
+
+            const sessionData = {
+                level: level,
+                sessionName: sessionName,
+                date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+                timestamp: Date.now(),
+                exercises: formattedExercises,
+                comment: comment, 
+                userId: userId,
+            };
+
+            const userRef = collection(db, `artifacts/${appId}/users/${userId}/lafay_sessions`);
+
+            try {
+                await addDoc(userRef, sessionData);
+                showMessage("Séance enregistrée avec succès !", 'blue');
+                
+                // Réinitialiser les champs pour la nouvelle séance
+                currentExercises.forEach(ex => ex.reps = []);
+                renderExercises();
+                
+                setTimeout(() => sessionMessageEl.classList.add('hidden'), 3000);
+            } catch (error) {
+                console.error("Erreur d'enregistrement Firestore:", error);
+                // Si l'utilisateur est hors ligne, on peut proposer de sauvegarder localement, mais ici on gère le message.
+                if (!navigator.onLine) {
+                     showMessage("Sauvegarde en attente (Hors ligne). Les données seront synchronisées plus tard.", 'yellow'); // Utiliser yellow comme orange
+                } else {
+                     showMessage("Erreur lors de la sauvegarde (Voir console).", 'red');
+                }
+            }
+        });
+
+        function showMessage(message, color) {
+            sessionMessageEl.textContent = message;
+            // Utiliser 'yellow-600' pour orange si c'est la couleur Tailwind la plus proche
+            const tailwindColor = color === 'orange' ? 'yellow-600' : `${color}-600`;
+            sessionMessageEl.className = `text-center text-sm mt-2 text-${tailwindColor}`;
+            sessionMessageEl.classList.remove('hidden');
+        }
+
+        // --- 5. Logique Minuteur de Repos et Son ---
+
+        const timerDisplay = document.getElementById('timer-display');
+        const startTimerBtn = document.getElementById('start-timer-btn');
+        const resetTimerBtn = document.getElementById('reset-timer-btn');
+        const timerStatusEl = document.getElementById('timer-status');
+        const inputRestTime = document.getElementById('input-rest-time');
+        const setRestTimeBtn = document.getElementById('set-rest-time-btn');
+
+        let intervalId = null;
+        let restTime = 25; // Default 25 seconds
+        let remainingTime = restTime;
+        let audioContext; 
+
+        // Fonction pour jouer un bip discret (Web Audio API)
+        function playBeep() {
+            // S'assurer que le contexte est prêt et démarré (il doit l'être par startTimer)
+            if (!audioContext) {
+                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContext.state === 'suspended') {
+                 audioContext.resume();
+            }
+
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.start();
+            
+            oscillator.stop(audioContext.currentTime + 0.3); 
+        }
+
+        setRestTimeBtn.addEventListener('click', () => {
+             const newTime = parseInt(inputRestTime.value);
+             if (newTime > 0) {
+                 restTime = newTime;
+                 remainingTime = restTime;
+                 timerDisplay.textContent = restTime;
+                 timerStatusEl.textContent = `Minuteur réglé sur ${restTime} secondes.`;
+             }
+        });
+
+        function updateTimerDisplay() {
+            timerDisplay.textContent = remainingTime;
+            // Alerte visuelle pour les 5 dernières secondes
+            if (remainingTime <= 5 && remainingTime > 0) {
+                timerDisplay.classList.add('text-red-600', 'animate-pulse');
+            } else {
+                timerDisplay.classList.remove('text-red-600', 'animate-pulse');
+            }
+        }
+
+        function startTimer() {
+            if (intervalId) return; // Already running
+
+            timerStatusEl.textContent = "Repos en cours...";
+            startTimerBtn.classList.add('hidden');
+            resetTimerBtn.classList.remove('hidden');
+
+            // Initialiser le contexte audio au premier clic utilisateur
+            if (!audioContext) {
+                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContext.state === 'suspended') {
+                 audioContext.resume();
+            }
+
+            intervalId = setInterval(() => {
+                remainingTime--;
+                updateTimerDisplay();
+
+                if (remainingTime <= 0) {
+                    clearInterval(intervalId);
+                    intervalId = null;
+                    remainingTime = restTime; // Reset for next use
+                    timerDisplay.textContent = '00';
+                    timerStatusEl.textContent = "FIN du Repos ! Passez à l'exercice suivant.";
+                    
+                    // Jouer le bip et la vibration
+                    playBeep(); 
+                    if (window.navigator.vibrate) {
+                        window.navigator.vibrate([200, 100, 200]);
+                    }
+
+                    startTimerBtn.classList.remove('hidden');
+                    resetTimerBtn.classList.add('hidden');
+                }
+            }, 1000);
+        }
+
+        function resetTimer() {
+            clearInterval(intervalId);
+            intervalId = null;
+            remainingTime = restTime;
+            updateTimerDisplay();
+            timerStatusEl.textContent = `Prêt pour un repos de ${restTime} secondes.`;
+            startTimerBtn.classList.remove('hidden');
+            resetTimerBtn.classList.add('hidden');
+            timerDisplay.classList.remove('text-red-600', 'animate-pulse');
+        }
+
+        startTimerBtn.addEventListener('click', startTimer);
+        resetTimerBtn.addEventListener('click', resetTimer);
+        // Initialiser l'affichage du minuteur à l'état initial
+        resetTimer();
+
+
+        // --- 6. Logique Historique (Lecture Firestore) ---
+
+        function startSessionListener() {
+            if (!db || !userId) return;
+
+            loadingHistoryEl.classList.remove('hidden');
+            noSessionsEl.classList.add('hidden');
+
+            const sessionsQuery = query(
+                collection(db, `artifacts/${appId}/users/${userId}/lafay_sessions`),
+                // Pas de orderBy car il demande un index, on trie en JS
+            );
+
+            onSnapshot(sessionsQuery, (snapshot) => {
+                loadingHistoryEl.classList.add('hidden');
+                sessionsCache = [];
+                snapshot.forEach(doc => {
+                    sessionsCache.push({ id: doc.id, ...doc.data() });
+                });
+
+                // Tri en mémoire par timestamp descendant
+                sessionsCache.sort((a, b) => b.timestamp - a.timestamp);
+
+                renderHistory();
+            }, (error) => {
+                console.error("Erreur de lecture Firestore (Historique):", error);
+                loadingHistoryEl.textContent = "Erreur de chargement de l'historique.";
+            });
+        }
+
+        function renderHistory() {
+            historyListEl.innerHTML = '';
+
+            if (sessionsCache.length === 0) {
+                noSessionsEl.classList.remove('hidden');
+                return;
+            }
+            noSessionsEl.classList.add('hidden');
+
+            sessionsCache.forEach(session => {
+                // S'assurer que 'sets' existe (pour les données provenant de Firestore)
+                const totalReps = session.exercises.reduce((sum, ex) => sum + (ex.sets ? ex.sets.reduce((s, r) => s + r, 0) : 0), 0);
+                
+                const sessionTitle = session.sessionName || 'Séance Inconnue';
+
+
+                const sessionDiv = document.createElement('div');
+                // Utilisation de la nouvelle classe material-card et session-card
+                sessionDiv.className = 'session-card material-card p-5 flex justify-between items-center';
+                sessionDiv.dataset.id = session.id;
+
+                sessionDiv.innerHTML = `
+                    <div>
+                        <p class="text-xl font-bold text-blue-600">${session.level}</p>
+                        <p class="text-sm text-gray-500">${session.date} - ${sessionTitle}</p>
+                    </div>
+                    <div class="text-right flex items-center space-x-2">
+                        <p class="text-lg font-extrabold text-gray-900">${totalReps}</p>
+                        <p class="text-sm font-medium text-gray-500">Reps</p>
+                        <i data-lucide="chevron-right" class="w-5 h-5 text-gray-400"></i>
+                    </div>
+                `;
+                historyListEl.appendChild(sessionDiv);
+            });
+            lucide.createIcons();
+        }
+
+        // --- 7. Modale de Détails de Séance ---
+
+        const modalEl = document.getElementById('detail-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const modalContentEl = document.getElementById('modal-content');
+
+        historyListEl.addEventListener('click', (e) => {
+            const card = e.target.closest('.session-card');
+            if (card) {
+                const sessionId = card.dataset.id;
+                const session = sessionsCache.find(s => s.id === sessionId);
+                if (session) {
+                    displaySessionDetails(session);
+                }
+            }
+        });
+
+        closeModalBtn.addEventListener('click', () => {
+            modalEl.classList.add('hidden');
+        });
+
+        function displaySessionDetails(session) {
+            const sessionTitle = session.sessionName || 'Séance Inconnue';
+            document.getElementById('modal-title').textContent = `${session.level} - ${sessionTitle}`;
+
+            let exercisesHTML = session.exercises.map(ex => `
+                <div class="border-b border-gray-200 pb-3 pt-3">
+                    <h4 class="text-xl font-bold text-gray-900">${ex.name}</h4>
+                    <p class="text-sm text-gray-600">Nombre de séries: <span class="font-semibold">${ex.sets ? ex.sets.length : 0}</span></p>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        <!-- Rep Chips - bg-blue-100 sur fond clair -->
+                        ${ex.sets ? ex.sets.map(r => `<span class="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full font-mono">${r}</span>`).join('') : 'N/A'}
+                    </div>
+                </div>
+            `).join('');
+
+            const commentDisplay = session.comment && session.comment.trim() !== "" 
+                ? `<div class="p-3 bg-gray-100 rounded-lg border border-gray-200"><h4 class="font-bold text-blue-600 mb-1">Commentaires:</h4><p class="italic text-sm text-gray-700">${session.comment}</p></div>`
+                : '';
+
+
+            modalContentEl.innerHTML = `
+                <p class="text-lg font-medium text-gray-700 mb-4 border-b border-gray-300 pb-2">Date: ${session.date}</p>
+                ${commentDisplay}
+                <h4 class="font-bold text-blue-600 pt-2">Détail des Exercices:</h4>
+                <div class="space-y-1">${exercisesHTML}</div>
+            `;
+
+            modalEl.classList.remove('hidden');
+        }
+
+
+        // --- Démarrage de l'Application ---
+        initializeFirebase();
+        renderExercises(); // Afficher les exercices par défaut
+        lucide.createIcons(); // Créer les icônes initiales
+        navigateToView('session'); // S'assurer que la vue par défaut est la saisie de session
+
+    </script>
+
+</body>
+</html>
