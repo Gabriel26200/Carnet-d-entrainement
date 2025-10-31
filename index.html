@@ -215,7 +215,7 @@
         const inputLevelEl = document.getElementById('input-level');
         // Nouvel élément pour le commentaire
         const inputSessionCommentEl = document.getElementById('input-session-comment');
-        const saveSessionBtn = document.getElementById('save-session-btn'); // Déjà défini dans la section 4, je le déplace ici.
+        const saveSessionBtn = document.getElementById('save-session-btn');
 
 
         // --- 1. Initialisation Firebase et Authentification ---
@@ -250,46 +250,34 @@
                 // ***** DÉMARRAGE BASE DE DONNÉES EN MODE PRODUCTION **********
                 // ************************************************************
 
-                // Authentification
+                // 1. Définir le listener d'état d'authentification AVANT de se connecter
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        isAuthReady = true;
+                        console.log("Firebase initialized and user authenticated:", userId);
+                        startSessionListener();
+                    } else {
+                        // L'utilisateur est déconnecté (si cela arrive)
+                        userId = null;
+                        isAuthReady = false;
+                        console.log("No user signed in.");
+                    }
+                    updateSaveButtonState(); // Mettre à jour l'état dans tous les cas
+                });
+
+                // 2. Tenter la connexion (ceci déclenchera l'onAuthStateChanged)
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
                 } else {
                     await signInAnonymously(auth);
                 }
 
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        isAuthReady = true;
-                        console.log("Firebase initialized and user authenticated:", userId);
-                        // Démarrer l'écoute des sessions après l'authentification
-                        startSessionListener();
-                        updateSaveButtonState(); // Mettre à jour l'état après succès
-                    } else {
-                        console.log("No user signed in.");
-                        // Tentative de connexion anonyme si nécessaire
-                        if (auth.currentUser) {
-                            userId = auth.currentUser.uid;
-                            isAuthReady = true;
-                            startSessionListener();
-                            updateSaveButtonState(); // Mettre à jour l'état après succès
-                        } else {
-                            signInAnonymously(auth).then(userCred => {
-                                userId = userCred.user.uid;
-                                isAuthReady = true;
-                                startSessionListener();
-                                updateSaveButtonState(); // Mettre à jour l'état après succès
-                            }).catch(err => {
-                                console.error("Erreur de connexion anonyme:", err);
-                                saveSessionBtn.textContent = "Erreur d'authentification. Actualisez."; // Afficher l'erreur
-                            });
-                        }
-                    }
-                });
-
             } catch (error) {
                 console.error("Erreur lors de l'initialisation de Firebase:", error);
-                saveSessionBtn.textContent = "Erreur fatale. Actualisez."; // Afficher l'erreur fatale
+                // Si la connexion échoue, on force l'état d'erreur du bouton
+                saveSessionBtn.disabled = true;
+                saveSessionBtn.textContent = "Échec d'authentification. Actualisez.";
             }
         }
         
