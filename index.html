@@ -152,6 +152,13 @@
             <!-- Champ de commentaires ajouté ici -->
             <textarea id="input-session-comment" rows="3" class="w-full p-4 rounded-xl bg-gray-100 text-gray-900 placeholder-gray-400 border-2 border-transparent focus:border-blue-600 transition" placeholder="Notes ou commentaires sur la séance (fatigue, sensations, etc.)"></textarea>
             
+            <!-- Panneau de Diagnostic (Nouveau) -->
+            <div id="auth-diagnostic" class="p-3 bg-gray-200 text-gray-700 rounded-lg text-xs font-mono hidden">
+                <p>État d'Auth : <span id="diag-auth-ready" class="font-bold text-red-600">FAUX</span></p>
+                <p class="truncate">UserID : <span id="diag-user-id" class="font-bold text-red-600">Chargement...</span></p>
+                <p>App ID : <span id="diag-app-id" class="font-bold text-gray-600"></span></p>
+            </div>
+
             <!-- Bouton désactivé initialement pour attendre l'authentification -->
             <button id="save-session-btn" class="w-full primary-btn py-4 text-xl shadow-xl hover:shadow-2xl transition opacity-50 cursor-not-allowed" disabled>
                 Authentification en cours...
@@ -215,19 +222,39 @@
         const inputSessionCommentEl = document.getElementById('input-session-comment');
         const saveSessionBtn = document.getElementById('save-session-btn');
 
+        // Éléments de Diagnostic (Nouveau)
+        const diagPanel = document.getElementById('auth-diagnostic');
+        const diagAuthReady = document.getElementById('diag-auth-ready');
+        const diagUserId = document.getElementById('diag-user-id');
+        const diagAppId = document.getElementById('diag-app-id');
+
 
         // --- 1. Initialisation Firebase et Authentification ---
         
         function updateSaveButtonState() {
+            // Mise à jour du bouton
             if (isAuthReady) {
                 saveSessionBtn.disabled = false;
                 saveSessionBtn.textContent = "Sauvegarder la Séance";
                 saveSessionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                diagPanel.classList.add('hidden'); // Cacher le diagnostic si réussi
             } else {
                 saveSessionBtn.disabled = true;
                 saveSessionBtn.textContent = "Authentification en cours...";
                 saveSessionBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                diagPanel.classList.remove('hidden'); // Afficher le diagnostic si échec/chargement
             }
+
+            // Mise à jour du panneau de diagnostic
+            diagAuthReady.textContent = isAuthReady ? 'VRAI' : 'FAUX';
+            diagAuthReady.classList.toggle('text-green-600', isAuthReady);
+            diagAuthReady.classList.toggle('text-red-600', !isAuthReady);
+            
+            diagUserId.textContent = userId ? userId.substring(0, 10) + '...' : 'AUCUN';
+            diagUserId.classList.toggle('text-gray-900', isAuthReady);
+            diagUserId.classList.toggle('text-red-600', !isAuthReady);
+
+            diagAppId.textContent = appId;
         }
 
 
@@ -235,6 +262,8 @@
             try {
                 if (Object.keys(firebaseConfig).length === 0) {
                     console.error("Firebase config is missing. Cannot initialize Firestore.");
+                    saveSessionBtn.textContent = "Erreur: Configuration Firebase manquante.";
+                    updateSaveButtonState();
                     return;
                 }
 
@@ -242,6 +271,8 @@
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
+                
+                diagAppId.textContent = appId; // S'assurer que l'ID est affiché
                 
                 let userCredential;
                 
@@ -258,7 +289,7 @@
                     userCredential = await signInAnonymously(auth);
                 }
 
-                // 3. Vérifier l'état de connexion IMMÉDIATEMENT après l'opération (fixe la condition de concurrence)
+                // 3. Vérifier l'état de connexion IMMÉDIATEMENT après l'opération 
                 if (auth.currentUser) {
                     userId = auth.currentUser.uid;
                     isAuthReady = true;
@@ -269,7 +300,7 @@
                     saveSessionBtn.textContent = "Erreur: Échec d'authentification.";
                 }
 
-                // 4. Mettre à jour l'état du bouton (première tentative)
+                // 4. Mettre à jour l'état du bouton
                 updateSaveButtonState();
                 
                 // 5. AJOUT DE LA VÉRIFICATION DE SÉCURITÉ (SOLUTION NUCLÉAIRE)
@@ -300,6 +331,8 @@
                 console.error("Erreur fatale lors de l'initialisation de Firebase:", error);
                 saveSessionBtn.disabled = true;
                 saveSessionBtn.textContent = "Erreur fatale. Actualisez.";
+                isAuthReady = false;
+                updateSaveButtonState();
             }
         }
         
@@ -684,7 +717,6 @@
                 });
 
                 // Tri en mémoire par timestamp descendant
-                // CORRECTION: Assurez-vous d'utiliser a.timestamp sans le 'a.' supplémentaire.
                 sessionsCache.sort((a, b) => b.timestamp - a.timestamp);
 
                 renderHistory();
