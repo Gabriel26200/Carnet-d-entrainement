@@ -149,8 +149,12 @@
                 </button>
             </div>
             
-            <button id="save-session-btn" class="w-full primary-btn py-4 text-xl shadow-xl hover:shadow-2xl transition">
-                Sauvegarder la Séance
+            <!-- Champ de commentaires ajouté ici -->
+            <textarea id="input-session-comment" rows="3" class="w-full p-4 rounded-xl bg-gray-100 text-gray-900 placeholder-gray-400 border-2 border-transparent focus:border-blue-600 transition" placeholder="Notes ou commentaires sur la séance (fatigue, sensations, etc.)"></textarea>
+            
+            <!-- Bouton désactivé initialement pour attendre l'authentification -->
+            <button id="save-session-btn" class="w-full primary-btn py-4 text-xl shadow-xl hover:shadow-2xl transition opacity-50 cursor-not-allowed" disabled>
+                Authentification en cours...
             </button>
             <p id="session-message" class="text-center text-sm mt-2 hidden"></p>
         </div>
@@ -208,10 +212,28 @@
         const loadingHistoryEl = document.getElementById('loading-history');
         const loadLastSessionBtn = document.getElementById('load-last-session-btn');
         const navButtons = document.querySelectorAll('.nav-btn');
-
         const inputLevelEl = document.getElementById('input-level');
+        // Nouvel élément pour le commentaire
+        const inputSessionCommentEl = document.getElementById('input-session-comment');
+        const saveSessionBtn = document.getElementById('save-session-btn'); // Déjà défini dans la section 4, je le déplace ici.
+
 
         // --- 1. Initialisation Firebase et Authentification ---
+        
+        // Fonction pour gérer l'état du bouton de sauvegarde
+        function updateSaveButtonState() {
+            if (isAuthReady) {
+                saveSessionBtn.disabled = false;
+                saveSessionBtn.textContent = "Sauvegarder la Séance";
+                saveSessionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                saveSessionBtn.disabled = true;
+                saveSessionBtn.textContent = "Authentification en cours...";
+                saveSessionBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+
         async function initializeFirebase() {
             try {
                 if (Object.keys(firebaseConfig).length === 0) {
@@ -242,6 +264,7 @@
                         console.log("Firebase initialized and user authenticated:", userId);
                         // Démarrer l'écoute des sessions après l'authentification
                         startSessionListener();
+                        updateSaveButtonState(); // Mettre à jour l'état après succès
                     } else {
                         console.log("No user signed in.");
                         // Tentative de connexion anonyme si nécessaire
@@ -249,13 +272,16 @@
                             userId = auth.currentUser.uid;
                             isAuthReady = true;
                             startSessionListener();
+                            updateSaveButtonState(); // Mettre à jour l'état après succès
                         } else {
                             signInAnonymously(auth).then(userCred => {
                                 userId = userCred.user.uid;
                                 isAuthReady = true;
                                 startSessionListener();
+                                updateSaveButtonState(); // Mettre à jour l'état après succès
                             }).catch(err => {
                                 console.error("Erreur de connexion anonyme:", err);
+                                saveSessionBtn.textContent = "Erreur d'authentification. Actualisez."; // Afficher l'erreur
                             });
                         }
                     }
@@ -263,6 +289,7 @@
 
             } catch (error) {
                 console.error("Erreur lors de l'initialisation de Firebase:", error);
+                saveSessionBtn.textContent = "Erreur fatale. Actualisez."; // Afficher l'erreur fatale
             }
         }
         
@@ -416,6 +443,9 @@
 
             // 1. Mettre à jour les champs de texte
             inputLevelEl.value = lastSession.level || 'Niveau X';
+            // Charger le commentaire de la dernière session si existant
+            inputSessionCommentEl.value = lastSession.comment || ''; 
+
 
             // 2. Charger les exercices (structure uniquement)
             currentExercises = lastSession.exercises.map(ex => ({
@@ -438,17 +468,17 @@
 
         // --- 4. Sauvegarde Firestore ---
 
-        const saveSessionBtn = document.getElementById('save-session-btn');
 
         saveSessionBtn.addEventListener('click', async () => {
             if (!isAuthReady) {
+                // Ce message ne devrait plus apparaître si le bouton est désactivé
                 showMessage("Erreur: Authentification non prête. Veuillez réessayer.", 'red');
                 return;
             }
 
             const level = inputLevelEl.value.trim();
             const sessionName = `Session du ${new Date().toLocaleDateString('fr-FR')}`; // Nom généré automatiquement
-            const comment = ""; 
+            const comment = inputSessionCommentEl.value.trim(); // Récupérer le commentaire
 
             // Filtrer et formater pour Firestore
             const validExercises = currentExercises.filter(ex => ex.reps && ex.reps.length > 0);
@@ -475,7 +505,7 @@
                 date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
                 timestamp: Date.now(),
                 exercises: formattedExercises,
-                comment: comment, 
+                comment: comment, // Sauvegarder le commentaire
                 userId: userId,
             };
 
@@ -487,6 +517,7 @@
                 
                 // Réinitialiser les champs pour la nouvelle séance
                 currentExercises.forEach(ex => ex.reps = []);
+                inputSessionCommentEl.value = ''; // Vider le champ de commentaire
                 renderExercises();
                 
                 setTimeout(() => sessionMessageEl.classList.add('hidden'), 3000);
