@@ -243,10 +243,6 @@
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                // ************************************************************
-                // ***** CORRECTION CRITIQUE DU FLUX D'AUTHENTIFICATION *******
-                // ************************************************************
-                
                 let userCredential;
                 
                 // 1. Tenter la connexion avec le jeton personnalisé s'il est disponible.
@@ -266,23 +262,33 @@
                 if (auth.currentUser) {
                     userId = auth.currentUser.uid;
                     isAuthReady = true;
-                    console.log("Authentication successful and ready:", userId);
+                    console.log("Authentication successful and ready (Sync Check):", userId);
                     startSessionListener(); // Démarrer l'écoute de l'historique
                 } else {
                     console.error("Authentication failed: currentUser is null after sign-in attempt.");
                     saveSessionBtn.textContent = "Erreur: Échec d'authentification.";
                 }
 
-                // Mettre à jour l'état du bouton (il devrait maintenant être actif si la connexion a réussi)
+                // 4. Mettre à jour l'état du bouton (première tentative)
                 updateSaveButtonState();
                 
-                // Garder l'écouteur pour les changements d'état futurs (ex: déconnexion)
+                // 5. AJOUT DE LA VÉRIFICATION DE SÉCURITÉ (SOLUTION NUCLÉAIRE)
+                // On met à jour l'état du bouton une seconde fois après un court délai pour contourner
+                // tout problème de concurrence ou de rafraîchissement d'interface.
+                setTimeout(() => {
+                    console.log("Forcing final button state update after 100ms...");
+                    updateSaveButtonState();
+                }, 100);
+
+
+                // 6. Garder l'écouteur pour les changements d'état futurs (ex: déconnexion)
                 onAuthStateChanged(auth, (user) => {
+                    // Ce listener gère les changements d'état APRES le chargement initial.
                     if (user && user.uid !== userId) { 
                         userId = user.uid;
                         isAuthReady = true;
                         updateSaveButtonState();
-                    } else if (!user) {
+                    } else if (!user && userId) {
                         // Gérer la déconnexion inattendue
                         userId = null;
                         isAuthReady = false;
@@ -678,7 +684,8 @@
                 });
 
                 // Tri en mémoire par timestamp descendant
-                sessionsCache.sort((a, b) => b.timestamp - a.a.timestamp);
+                // CORRECTION: Assurez-vous d'utiliser a.timestamp sans le 'a.' supplémentaire.
+                sessionsCache.sort((a, b) => b.timestamp - a.timestamp);
 
                 renderHistory();
             }, (error) => {
