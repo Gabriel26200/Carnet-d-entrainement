@@ -192,7 +192,6 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        // REMARQUE: connectFirestoreEmulator a été supprimé.
         import { getFirestore, doc, addDoc, onSnapshot, collection, query, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Variables globales fournies par l'environnement
@@ -213,14 +212,12 @@
         const loadLastSessionBtn = document.getElementById('load-last-session-btn');
         const navButtons = document.querySelectorAll('.nav-btn');
         const inputLevelEl = document.getElementById('input-level');
-        // Nouvel élément pour le commentaire
         const inputSessionCommentEl = document.getElementById('input-session-comment');
         const saveSessionBtn = document.getElementById('save-session-btn');
 
 
         // --- 1. Initialisation Firebase et Authentification ---
         
-        // Fonction pour gérer l'état du bouton de sauvegarde
         function updateSaveButtonState() {
             if (isAuthReady) {
                 saveSessionBtn.disabled = false;
@@ -247,37 +244,56 @@
                 auth = getAuth(app);
                 
                 // ************************************************************
-                // ***** DÉMARRAGE BASE DE DONNÉES EN MODE PRODUCTION **********
+                // ***** CORRECTION CRITIQUE DU FLUX D'AUTHENTIFICATION *******
                 // ************************************************************
-
-                // 1. Définir le listener d'état d'authentification AVANT de se connecter
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        isAuthReady = true;
-                        console.log("Firebase initialized and user authenticated:", userId);
-                        startSessionListener();
-                    } else {
-                        // L'utilisateur est déconnecté (si cela arrive)
-                        userId = null;
-                        isAuthReady = false;
-                        console.log("No user signed in.");
-                    }
-                    updateSaveButtonState(); // Mettre à jour l'état dans tous les cas
-                });
-
-                // 2. Tenter la connexion (ceci déclenchera l'onAuthStateChanged)
+                
+                let userCredential;
+                
+                // 1. Tenter la connexion avec le jeton personnalisé s'il est disponible.
                 if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
+                    userCredential = await signInWithCustomToken(auth, initialAuthToken)
+                        .catch(error => {
+                            console.warn("Custom token sign-in failed, trying anonymous sign-in.", error);
+                            // En cas d'échec du jeton, réessayer anonymement
+                            return signInAnonymously(auth);
+                        });
                 } else {
-                    await signInAnonymously(auth);
+                    // 2. Sinon, se connecter anonymement directement
+                    userCredential = await signInAnonymously(auth);
                 }
 
+                // 3. Vérifier l'état de connexion IMMÉDIATEMENT après l'opération (fixe la condition de concurrence)
+                if (auth.currentUser) {
+                    userId = auth.currentUser.uid;
+                    isAuthReady = true;
+                    console.log("Authentication successful and ready:", userId);
+                    startSessionListener(); // Démarrer l'écoute de l'historique
+                } else {
+                    console.error("Authentication failed: currentUser is null after sign-in attempt.");
+                    saveSessionBtn.textContent = "Erreur: Échec d'authentification.";
+                }
+
+                // Mettre à jour l'état du bouton (il devrait maintenant être actif si la connexion a réussi)
+                updateSaveButtonState();
+                
+                // Garder l'écouteur pour les changements d'état futurs (ex: déconnexion)
+                onAuthStateChanged(auth, (user) => {
+                    if (user && user.uid !== userId) { 
+                        userId = user.uid;
+                        isAuthReady = true;
+                        updateSaveButtonState();
+                    } else if (!user) {
+                        // Gérer la déconnexion inattendue
+                        userId = null;
+                        isAuthReady = false;
+                        updateSaveButtonState();
+                    }
+                });
+
             } catch (error) {
-                console.error("Erreur lors de l'initialisation de Firebase:", error);
-                // Si la connexion échoue, on force l'état d'erreur du bouton
+                console.error("Erreur fatale lors de l'initialisation de Firebase:", error);
                 saveSessionBtn.disabled = true;
-                saveSessionBtn.textContent = "Échec d'authentification. Actualisez.";
+                saveSessionBtn.textContent = "Erreur fatale. Actualisez.";
             }
         }
         
@@ -459,7 +475,6 @@
 
         saveSessionBtn.addEventListener('click', async () => {
             if (!isAuthReady) {
-                // Ce message ne devrait plus apparaître si le bouton est désactivé
                 showMessage("Erreur: Authentification non prête. Veuillez réessayer.", 'red');
                 return;
             }
@@ -663,7 +678,7 @@
                 });
 
                 // Tri en mémoire par timestamp descendant
-                sessionsCache.sort((a, b) => b.timestamp - a.timestamp);
+                sessionsCache.sort((a, b) => b.timestamp - a.a.timestamp);
 
                 renderHistory();
             }, (error) => {
