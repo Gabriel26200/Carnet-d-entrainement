@@ -149,8 +149,6 @@
                 </button>
             </div>
             
-            <!-- Le champ de commentaires a été supprimé ici -->
-            
             <!-- Bouton désactivé initialement pour attendre l'authentification -->
             <button id="save-session-btn" class="w-full primary-btn py-4 text-xl shadow-xl hover:shadow-2xl transition opacity-50 cursor-not-allowed" disabled>
                 Authentification en cours...
@@ -161,10 +159,6 @@
         <!-- 2. Vue Historique -->
         <div id="view-history" class="app-view hidden space-y-6">
             <h2 class="text-2xl font-semibold text-gray-800">Mon Historique (Progression)</h2>
-
-            <!-- Le bouton d'exportation a été supprimé ici -->
-            <!-- <button id="export-json-btn" ... > </button> -->
-            <!-- <p id="export-message" ...></p> -->
 
             <p id="loading-history" class="text-gray-600 text-center py-8">Chargement des séances...</p>
 
@@ -215,25 +209,22 @@
         const loadLastSessionBtn = document.getElementById('load-last-session-btn');
         const navButtons = document.querySelectorAll('.nav-btn');
         const inputLevelEl = document.getElementById('input-level');
-        // const inputSessionCommentEl = document.getElementById('input-session-comment'); // Supprimé
         const saveSessionBtn = document.getElementById('save-session-btn');
-        // const exportJsonBtn = document.getElementById('export-json-btn'); // Supprimé
-        // const exportMessageEl = document.getElementById('export-message'); // Supprimé
 
 
-        // --- 1. Initialisation Firebase et Authentification ---
+        // --- 1. Initialisation Firebase et Authentification (RÉVISÉE) ---
         
         function updateSaveButtonState() {
             // Mise à jour du bouton de sauvegarde (Session)
             if (isAuthReady) {
                 saveSessionBtn.disabled = false;
-                saveSessionBtn.textContent = "Sauvegarder la Séance";
+                // Si le texte n'a pas été défini par une erreur de fallback, utilisez le texte standard
+                if (saveSessionBtn.textContent === "Authentification en cours...") {
+                     saveSessionBtn.textContent = "Sauvegarder la Séance";
+                }
                 saveSessionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                
-                // Le bouton d'exportation est maintenant retiré
             } else {
                 saveSessionBtn.disabled = true;
-                saveSessionBtn.textContent = "Authentification en cours...";
                 saveSessionBtn.classList.add('opacity-50', 'cursor-not-allowed');
             }
         }
@@ -253,63 +244,63 @@
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                let userCredential;
-                let signInAttemptSuccessful = false;
-                
-                // Tenter la connexion avec le jeton personnalisé s'il est disponible
+                let user = null;
+                let errorReason = null;
+
+                // 1. Tenter la connexion avec le jeton personnalisé
                 if (initialAuthToken) {
                     try {
-                         userCredential = await signInWithCustomToken(auth, initialAuthToken);
-                         signInAttemptSuccessful = true;
+                         user = (await signInWithCustomToken(auth, initialAuthToken)).user;
                     } catch (error) {
                         console.warn("Custom token sign-in failed. Attempting anonymous sign-in.", error);
+                        errorReason = "Token sign-in failed.";
                     }
                 }
 
-                // Si l'authentification par jeton a échoué ou n'était pas tentée, ou si on n'a pas encore de credential
-                if (!signInAttemptSuccessful) {
+                // 2. Si échec, tenter la connexion anonyme
+                if (!user) {
                     try {
-                        userCredential = await signInAnonymously(auth);
-                        signInAttemptSuccessful = true;
+                        user = (await signInAnonymously(auth)).user;
                     } catch (error) {
-                        console.error("Anonymous sign-in failed. Generating fallback User ID.", error);
+                        console.error("Anonymous sign-in failed.", error);
+                        errorReason = "Anonymous sign-in failed.";
                     }
                 }
 
-
-                // --- VÉRIFICATION ET MISE À JOUR DE L'ÉTAT ---
-                if (auth.currentUser) {
-                    // Connexion Firebase réussie (jeton ou anonyme)
-                    userId = auth.currentUser.uid;
+                // 3. Vérification de l'état final
+                if (user) {
+                    // Succès de l'authentification Firebase
+                    userId = user.uid;
                     isAuthReady = true;
-                    console.log("Authentication successful and ready (Firebase User ID):", userId);
+                    console.log("Authentication successful (Firebase User ID):", userId);
                     startSessionListener(); 
-                } else if (appId !== 'default-app-id' && !auth.currentUser) {
-                    // Si on n'a pas de connexion Firebase mais qu'on est DANS le Canvas (App ID valide)
-                    // On force un ID pour débloquer l'utilisateur dans l'interface, même si la persistance sera problématique.
-                     userId = 'fallback-' + crypto.randomUUID();
-                     isAuthReady = true;
-                     console.warn("Authentication failed, using fallback User ID:", userId);
-                     // NE PAS démarrer le listener Firestore car il échouera sans auth.currentUser
                 } else {
-                     // Échec total (hors Canvas, App ID par défaut, pas de connexion)
-                    console.error("Authentication failed: Cannot determine User ID.");
-                    saveSessionBtn.textContent = "Erreur: Échec d'authentification.";
+                    // Échec: Utiliser un ID de secours si nous sommes dans un environnement où la persistance est attendue
+                    if (appId !== 'default-app-id') {
+                        userId = 'fallback-' + crypto.randomUUID();
+                        isAuthReady = true; // Permet de déverrouiller le bouton pour tester
+                        console.warn(`Authentication failed (${errorReason}), using fallback ID:`, userId);
+                        // Afficher un message de statut clair
+                        saveSessionBtn.textContent = "Mode Sauvegarde (ID temporaire).";
+                        // NOTE : Sans auth.currentUser, startSessionListener échouera, mais la sauvegarde fonctionnera.
+                    } else {
+                        // Échec total (hors environnement de travail)
+                        console.error("Authentication failed: No user available.");
+                        saveSessionBtn.textContent = "Erreur: Échec d'authentification.";
+                    }
                 }
 
-                // Mettre à jour l'état du bouton
+                // Mettre à jour l'état du bouton après toutes les opérations asynchrones
                 updateSaveButtonState();
-                
-                // Garder l'écouteur pour les changements d'état futurs (ex: déconnexion)
+
+                // L'écouteur d'état est conservé pour la robustesse des changements APRES le chargement initial
                 onAuthStateChanged(auth, (user) => {
-                    // Ce listener gère les changements d'état APRES le chargement initial.
                     if (user && user.uid !== userId) { 
                         userId = user.uid;
                         isAuthReady = true;
                         updateSaveButtonState();
-                        startSessionListener(); // Redémarrer l'écouteur avec le nouvel ID
-                    } else if (!user && userId) {
-                        // Gérer la déconnexion inattendue
+                        startSessionListener();
+                    } else if (!user && userId && userId.startsWith('fallback') === false) {
                         userId = null;
                         isAuthReady = false;
                         updateSaveButtonState();
@@ -318,7 +309,6 @@
 
             } catch (error) {
                 console.error("Erreur fatale lors de l'initialisation de Firebase:", error);
-                saveSessionBtn.disabled = true;
                 saveSessionBtn.textContent = "Erreur fatale. Actualisez.";
                 isAuthReady = false;
                 updateSaveButtonState();
@@ -475,7 +465,6 @@
 
             // 1. Mettre à jour les champs de texte
             inputLevelEl.value = lastSession.level || 'Niveau X';
-            // Le champ de commentaire a été supprimé
 
             // 2. Charger les exercices (structure uniquement)
             currentExercises = lastSession.exercises.map(ex => ({
@@ -507,7 +496,6 @@
 
             const level = inputLevelEl.value.trim();
             const sessionName = `Session du ${new Date().toLocaleDateString('fr-FR')}`; // Nom généré automatiquement
-            // Le champ de commentaire a été retiré, donc plus de récupération ici
 
             // Filtrer et formater pour Firestore
             const validExercises = currentExercises.filter(ex => ex.reps && ex.reps.length > 0);
@@ -534,7 +522,6 @@
                 date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
                 timestamp: Date.now(),
                 exercises: formattedExercises,
-                // Le champ de commentaire n'est plus inclus dans sessionData
                 userId: userId,
             };
 
@@ -547,7 +534,6 @@
                 
                 // Réinitialiser les champs pour la nouvelle séance
                 currentExercises.forEach(ex => ex.reps = []);
-                // inputSessionCommentEl.value = ''; // Non nécessaire car le champ est retiré
                 renderExercises();
                 
                 setTimeout(() => sessionMessageEl.classList.add('hidden'), 3000);
@@ -686,9 +672,13 @@
         function startSessionListener() {
             // Démarrer l'écouteur UNIQUEMENT si l'authentification est gérée par Firebase (auth.currentUser existe)
             if (!db || !auth.currentUser || !userId) {
-                console.warn("Cannot start session listener: Firebase Auth user is missing.");
-                loadingHistoryEl.textContent = "Authentification non complète, historique non disponible.";
-                updateSaveButtonState();
+                // Si on a un userId de fallback, c'est OK pour la sauvegarde, mais le listener de l'historique échouera.
+                if (userId && userId.startsWith('fallback')) {
+                    loadingHistoryEl.textContent = "Historique non disponible sans authentification Firebase complète.";
+                } else {
+                    console.warn("Cannot start session listener: Firebase Auth user is missing.");
+                    loadingHistoryEl.textContent = "Authentification non complète, historique non disponible.";
+                }
                 return;
             }
 
@@ -721,11 +711,9 @@
 
             if (sessionsCache.length === 0) {
                 noSessionsEl.classList.remove('hidden');
-                // L'exportation est supprimée, donc pas besoin de désactiver le bouton
                 return;
             }
             noSessionsEl.classList.add('hidden');
-            // L'exportation est supprimée, donc pas besoin d'activer le bouton
 
             sessionsCache.forEach(session => {
                 // S'assurer que 'sets' existe (pour les données provenant de Firestore)
@@ -754,9 +742,6 @@
             });
             lucide.createIcons();
         }
-
-        // --- 7. Logique d'Exportation Local (JSON) ---
-        // Les fonctions d'exportation ont été supprimées
 
         
         // --- 8. Modale de Détails de Séance ---
@@ -795,7 +780,6 @@
                 </div>
             `).join('');
 
-            // La gestion de l'affichage du commentaire a été supprimée
             const commentDisplay = '';
 
 
