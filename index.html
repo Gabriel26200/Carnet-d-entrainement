@@ -149,8 +149,7 @@
                 </button>
             </div>
             
-            <!-- Champ de commentaires ajouté ici -->
-            <textarea id="input-session-comment" rows="3" class="w-full p-4 rounded-xl bg-gray-100 text-gray-900 placeholder-gray-400 border-2 border-transparent focus:border-blue-600 transition" placeholder="Notes ou commentaires sur la séance (fatigue, sensations, etc.)"></textarea>
+            <!-- Le champ de commentaires a été supprimé ici -->
             
             <!-- Bouton désactivé initialement pour attendre l'authentification -->
             <button id="save-session-btn" class="w-full primary-btn py-4 text-xl shadow-xl hover:shadow-2xl transition opacity-50 cursor-not-allowed" disabled>
@@ -163,13 +162,9 @@
         <div id="view-history" class="app-view hidden space-y-6">
             <h2 class="text-2xl font-semibold text-gray-800">Mon Historique (Progression)</h2>
 
-            <!-- Bouton d'exportation ajouté ici -->
-            <button id="export-json-btn" class="w-full bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-full text-lg font-bold shadow-md transition flex items-center justify-center space-x-2 disabled:opacity-50" disabled>
-                <i data-lucide="download" class="w-5 h-5"></i>
-                <span>Exporter les Données (.json)</span>
-            </button>
-            <p id="export-message" class="text-center text-sm mt-2 hidden text-blue-600"></p>
-
+            <!-- Le bouton d'exportation a été supprimé ici -->
+            <!-- <button id="export-json-btn" ... > </button> -->
+            <!-- <p id="export-message" ...></p> -->
 
             <p id="loading-history" class="text-gray-600 text-center py-8">Chargement des séances...</p>
 
@@ -220,10 +215,10 @@
         const loadLastSessionBtn = document.getElementById('load-last-session-btn');
         const navButtons = document.querySelectorAll('.nav-btn');
         const inputLevelEl = document.getElementById('input-level');
-        const inputSessionCommentEl = document.getElementById('input-session-comment');
+        // const inputSessionCommentEl = document.getElementById('input-session-comment'); // Supprimé
         const saveSessionBtn = document.getElementById('save-session-btn');
-        const exportJsonBtn = document.getElementById('export-json-btn');
-        const exportMessageEl = document.getElementById('export-message');
+        // const exportJsonBtn = document.getElementById('export-json-btn'); // Supprimé
+        // const exportMessageEl = document.getElementById('export-message'); // Supprimé
 
 
         // --- 1. Initialisation Firebase et Authentification ---
@@ -235,15 +230,11 @@
                 saveSessionBtn.textContent = "Sauvegarder la Séance";
                 saveSessionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 
-                // Active le bouton d'exportation
-                exportJsonBtn.disabled = false;
+                // Le bouton d'exportation est maintenant retiré
             } else {
                 saveSessionBtn.disabled = true;
                 saveSessionBtn.textContent = "Authentification en cours...";
                 saveSessionBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                
-                // Désactive le bouton d'exportation
-                exportJsonBtn.disabled = true;
             }
         }
 
@@ -484,9 +475,7 @@
 
             // 1. Mettre à jour les champs de texte
             inputLevelEl.value = lastSession.level || 'Niveau X';
-            // Charger le commentaire de la dernière session si existant
-            inputSessionCommentEl.value = lastSession.comment || ''; 
-
+            // Le champ de commentaire a été supprimé
 
             // 2. Charger les exercices (structure uniquement)
             currentExercises = lastSession.exercises.map(ex => ({
@@ -518,7 +507,7 @@
 
             const level = inputLevelEl.value.trim();
             const sessionName = `Session du ${new Date().toLocaleDateString('fr-FR')}`; // Nom généré automatiquement
-            const comment = inputSessionCommentEl.value.trim(); // Récupérer le commentaire
+            // Le champ de commentaire a été retiré, donc plus de récupération ici
 
             // Filtrer et formater pour Firestore
             const validExercises = currentExercises.filter(ex => ex.reps && ex.reps.length > 0);
@@ -545,7 +534,7 @@
                 date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
                 timestamp: Date.now(),
                 exercises: formattedExercises,
-                comment: comment, // Sauvegarder le commentaire
+                // Le champ de commentaire n'est plus inclus dans sessionData
                 userId: userId,
             };
 
@@ -558,7 +547,7 @@
                 
                 // Réinitialiser les champs pour la nouvelle séance
                 currentExercises.forEach(ex => ex.reps = []);
-                inputSessionCommentEl.value = ''; // Vider le champ de commentaire
+                // inputSessionCommentEl.value = ''; // Non nécessaire car le champ est retiré
                 renderExercises();
                 
                 setTimeout(() => sessionMessageEl.classList.add('hidden'), 3000);
@@ -699,7 +688,6 @@
             if (!db || !auth.currentUser || !userId) {
                 console.warn("Cannot start session listener: Firebase Auth user is missing.");
                 loadingHistoryEl.textContent = "Authentification non complète, historique non disponible.";
-                // On met à jour l'état du bouton Export au cas où
                 updateSaveButtonState();
                 return;
             }
@@ -733,12 +721,11 @@
 
             if (sessionsCache.length === 0) {
                 noSessionsEl.classList.remove('hidden');
-                // S'assurer que le bouton d'exportation est désactivé s'il n'y a pas de données
-                exportJsonBtn.disabled = true;
+                // L'exportation est supprimée, donc pas besoin de désactiver le bouton
                 return;
             }
             noSessionsEl.classList.add('hidden');
-            exportJsonBtn.disabled = false; // Activation s'il y a des données
+            // L'exportation est supprimée, donc pas besoin d'activer le bouton
 
             sessionsCache.forEach(session => {
                 // S'assurer que 'sets' existe (pour les données provenant de Firestore)
@@ -769,49 +756,8 @@
         }
 
         // --- 7. Logique d'Exportation Local (JSON) ---
+        // Les fonctions d'exportation ont été supprimées
 
-        function exportDataToJson() {
-            if (sessionsCache.length === 0) {
-                showExportMessage("Aucune donnée à exporter.", 'red');
-                return;
-            }
-            
-            // Préparer les données pour l'exportation
-            const dataToExport = {
-                appId: appId,
-                userId: userId,
-                exportedAt: new Date().toISOString(),
-                sessionsCount: sessionsCache.length,
-                sessions: sessionsCache
-            };
-
-            const jsonString = JSON.stringify(dataToExport, null, 2); // 2 espaces pour une belle indentation
-            const blob = new Blob([jsonString], { type: 'application/json' });
-            
-            // Créer un lien temporaire pour le téléchargement
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `carnet_entrainement_backup_${dataToExport.exportedAt.substring(0, 10)}.json`;
-            
-            // Ajouter et cliquer sur le lien, puis le retirer
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            
-            URL.revokeObjectURL(a.href);
-            
-            showExportMessage(`Exportation de ${sessionsCache.length} séances réussie !`, 'blue');
-        }
-        
-        exportJsonBtn.addEventListener('click', exportDataToJson);
-
-        function showExportMessage(message, color) {
-            exportMessageEl.textContent = message;
-            const tailwindColor = `${color}-600`;
-            exportMessageEl.className = `text-center text-sm mt-2 text-${tailwindColor}`;
-            exportMessageEl.classList.remove('hidden');
-            setTimeout(() => exportMessageEl.classList.add('hidden'), 5000);
-        }
         
         // --- 8. Modale de Détails de Séance ---
 
@@ -849,9 +795,8 @@
                 </div>
             `).join('');
 
-            const commentDisplay = session.comment && session.comment.trim() !== "" 
-                ? `<div class="p-3 bg-gray-100 rounded-lg border border-gray-200"><h4 class="font-bold text-blue-600 mb-1">Commentaires:</h4><p class="italic text-sm text-gray-700">${session.comment}</p></div>`
-                : '';
+            // La gestion de l'affichage du commentaire a été supprimée
+            const commentDisplay = '';
 
 
             modalContentEl.innerHTML = `
